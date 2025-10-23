@@ -2,18 +2,25 @@ import type { Ref } from "react";
 import { Network } from "vis";
 import type { Automaton } from "./Automatons";
 
+const MAINCOLOR = "red";
+const FINAL_STATE_COLOR = "#00ff00";
+const SECOND_COLOR = "black";
+
 export default function makeVis(aut: Automaton, containerRef: any): Network {
-    let nodes: any = aut.stateNames.map((name, idx) => ({ id: idx, label: name, color: "red" }));
+    let nodes: any = aut.stateNames.map((name, idx) => ({ id: idx, label: name, color: { background: MAINCOLOR, border: SECOND_COLOR } }));
     let edges: any = Array.from(aut.transitions.entries())
-        .map(entry => ({ from: entry[0].stateIdx, to: entry[1], label: entry[0].character, arrows: "to" })); 
+        .map(entry => ({ from: entry[0].stateIdx, to: entry[1], color: { color: MAINCOLOR }, label: entry[0].character, arrows: "to" })); 
 
     aut.initialStates.forEach((stateIdx, idx) => {
       const hiddenIdx = -idx - 1;
-      nodes.push({ id: hiddenIdx, shape: "dot", size: 5, color: "black" });
+      nodes.push({ id: hiddenIdx, shape: "dot", size: 5, color: SECOND_COLOR });
       edges.push({ from: hiddenIdx, to: stateIdx, arrows: "to", length: 75 });
     });
 
-    console.log(nodes, edges);
+    aut.finalStates.forEach(stateIdx => {
+      nodes[stateIdx].color.background = FINAL_STATE_COLOR;
+      nodes[stateIdx].color.border = SECOND_COLOR;
+    });
 
     const data = { nodes, edges };
     const options: any = {
