@@ -8,8 +8,8 @@ const SECOND_COLOR = "black";
 
 export default function makeVis(aut: Automaton, containerRef: any): Network {
     let nodes: any = aut.stateNames.map((name, idx) => ({ id: idx, label: name, color: { background: MAINCOLOR, border: SECOND_COLOR } }));
-    let edges: any = Array.from(aut.transitions.entries())
-        .map(entry => ({ from: entry[0].stateIdx, to: entry[1], color: { color: MAINCOLOR }, label: entry[0].character, arrows: "to" })); 
+    let edges: any = aut.transitions
+      .map((t, idx) => ({ id: idx, from: t.from, to: t.to, color: { color: MAINCOLOR }, label: t.character, arrows: "to" }))
 
     aut.initialStates.forEach((stateIdx, idx) => {
       const hiddenIdx = -idx - 1;
@@ -40,5 +40,11 @@ export default function makeVis(aut: Automaton, containerRef: any): Network {
       },
     };
 
-    return new Network(containerRef.current, data, options);
-}
+    const network =  new Network(containerRef.current, data, options);
+    network.setSelection({
+      nodes: aut.highlightedStates,
+      edges: aut.highlightedEdges,
+    }, { highlightEdges: false });
+
+    return network;
+  }

@@ -1,8 +1,9 @@
 export const EPSILON = "ε";
 
-interface TransitionKey {
+export interface Transition {
   character: string;
-  stateIdx: number;
+  from: number;
+  to: number;
 }
 
 export enum AutomatonType {
@@ -17,7 +18,7 @@ export interface AutomatonOpts {
   readonly stateNames: Array<string>;
   readonly finalStates: Array<number>;
   readonly initialStates: Array<number>;
-  readonly transitions: Map<TransitionKey, number>;
+  readonly transitions: Array<Transition>;
 }
 
 export function makeAut(type: AutomatonType, opts: AutomatonOpts): Automaton {
@@ -28,8 +29,8 @@ export function makeAut(type: AutomatonType, opts: AutomatonOpts): Automaton {
   }
 }
 
-export function mt(character: string, stateIdx: number): TransitionKey {
-  return { character, stateIdx };
+export function mt(character: string, from: number, to: number): Transition {
+  return { character, from, to };
 }
 
 export abstract class Automaton {
@@ -39,13 +40,69 @@ export abstract class Automaton {
   get stateNames(): Array<string> { return this.opts.stateNames; };
   get finalStates(): Array<number> { return this.opts.finalStates; };
   get initialStates(): Array<number> { return this.opts.initialStates; };
-  get transitions(): Map<TransitionKey, number> { return this.opts.transitions; };
+  get transitions(): Array<Transition> { return this.opts.transitions; };
+
+  private currentStates: Array<number>;
+
+  highlightedStates: Array<number> = [];
+  highlightedEdges: Array<number> = [];
 
   constructor(opts: AutomatonOpts) {
     this.opts = opts;
+    this.currentStates = this.initialStates;
+    this.highlightedStates = this.initialStates;
+  }
+
+  // FIXME: check if epsilon clojure is needed on initial states
+  reset() {
+    this.currentStates = this.initialStates;
+    this.highlightedStates = this.initialStates;
+    this.highlightedEdges = [];
   }
 
   abstract checkCorrect(): boolean;
+
+  getAllTransitions(c: string, from: number): Array<Transition> {
+    let transitionsIdx = [];
+    return this.transitions.filter(t => t.character === c && t.from === from);
+  }
+
+  readChar(c: string) {
+    let nextStates: Array<number> = [];
+    this.highlightedEdges = [];
+
+    for (const from of this.currentStates) {
+      const transitionsUsed = this.getAllTransitions(c, from);
+      this.highlightedEdges = this.highlightedEdges.concat(transitionsUsed.map(t => this.transitions.indexOf(t)));
+      const currNextStates = this.getEpsClojure(transitionsUsed.map(t => t.to));
+      nextStates = nextStates.concat(currNextStates);
+    }
+
+    this.highlightedStates = nextStates;
+    this.currentStates = nextStates;
+  }
+
+  acceptsWord(s: string): boolean {
+    this.reset();
+
+    for (const c of s) {
+      if (this.currentStates.length === 0) return false;
+      this.readChar(c);
+    }
+    
+    return this.currentStates.some(s => this.finalStates.includes(s));
+  }
+
+  getEpsClojure(states: Array<number>): Array<number> {
+    let epsClojure: Array<number> = [];
+    for (const from of states) {
+      let nextStates = this.transitions.filter(t => t.character == EPSILON && t.from == from).map(t => t.to);
+      epsClojure = epsClojure.concat(nextStates);
+    }
+    epsClojure = epsClojure.concat(states);
+
+    return epsClojure;
+  }
 }
 
 class DFA extends Automaton {
@@ -60,16 +117,14 @@ class DFA extends Automaton {
     // no epsilon transitions
     // only valid transitions
     for (const t of this.transitions) {
-      if (t[0].character === EPSILON) return false;
-      if (t[0].stateIdx >= this.stateCount || t[0].stateIdx < 0) return false;
+      if (t.character === EPSILON) return false;
+      if (t.from >= this.stateCount || t.from < 0) return false;
     }
 
     // check that for each state and character combination there exists a transition
     for (let i = 0; i < this.stateCount; ++i) {
       for (const c of this.alphabet) {
-        if (Array.from(this.transitions.keys())
-          .filter((key, _) => key.character == c && key.stateIdx == i)
-          .length != 1) return false;
+        if (this.transitions.filter(t => t.character == c && t.from == i).length !== 1) return false;
       }
     }
 
@@ -90,8 +145,8 @@ class NFA extends Automaton {
     // no epsilon transitions
     // only valid transitions
     for (const t of this.transitions) {
-      if (t[0].character === EPSILON) return false;
-      if (t[0].stateIdx >= this.stateCount || t[0].stateIdx < 0) return false;
+      if (t.character === EPSILON) return false;
+      if (t.from >= this.stateCount || t.from < 0) return false;
     }
 
     // at least one initial state
@@ -109,7 +164,7 @@ class ENFA extends Automaton {
   checkCorrect(): boolean {
     // only valid transitions
     for (const t of this.transitions) {
-      if (t[0].stateIdx >= this.stateCount || t[0].stateIdx < 0) return false;
+      if (t.from >= this.stateCount || t.from < 0) return false;
     }
 
     // at least one initial state
