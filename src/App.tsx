@@ -40,25 +40,17 @@ function autOptsFromText(text: string): AutomatonOpts {
   return opts;
 }
 export default function App() {
-  const [text, setText] = useState(INITIAL_JSON);
+  const [regex, setRegex] = useState("a*b*");
   const wordFieldRef: Ref<HTMLInputElement> = useRef(null);
   const wordPRef: Ref<HTMLParagraphElement> = useRef(null);
+  const regexRef: Ref<HTMLInputElement> = useRef(null);
   const networkRef: Ref<Network> = useRef(null);
 
   let currentWord = "";
   let currentCharIdx = 0;
 
-  let opts;
-  try {
-    opts = autOptsFromText(text);
-  } catch {
-    opts = autOptsFromText(INITIAL_JSON);
-  }
-
   // const aut = makeAut(AutomatonType.DFA, opts);
-  const regex = "a|b*"
-  const aut = regexToAut("a|b*", "1");
-  console.log(aut);
+  const aut = regexToAut(regex, "1");
   function onSetWord() {
     aut.reset();
     currentWord = wordFieldRef!.current.value;
@@ -88,9 +80,9 @@ export default function App() {
           <button onClick={ () => onSetWord() }>Set Word</button>
           <button onClick={ () => onReadChar() }>Read Next Character</button>
           <p ref={wordPRef}></p>
-          <p>Current Regex: {regex}</p>
+          <input ref={regexRef} placeholder='Enter regex ...'></input>
+          <button onClick={ e => setRegex(regexRef.current.value) }>Create {EPSILON}-NFA from Regex</button>
         </div>
-        <div><textarea onChange={e => setText(e.target.value)} style={{ width: "500px", height: "100%", boxSizing: "border-box" }} defaultValue={INITIAL_JSON}></textarea></div>
       </div>
     </div>
   );

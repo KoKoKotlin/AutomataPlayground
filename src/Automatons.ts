@@ -181,9 +181,11 @@ enum TokenType {
   OPENING_PAREN,
   CLOSING_PAREN,
   ERROR, // error token for signaling errors in the input
-  SUBREGEX, // token that contains the inside of paranthesis
+  SUBREGEX, // token that contains the inside of paranthesis, or subexpr for | operator
   EOI, // end of input
 }
+
+const OPERATOR_TOKENS = [TokenType.STAR, TokenType.PLUS, TokenType.QUESTION_MARK];
 
 class Token {
   text: string;
@@ -247,6 +249,42 @@ class Lexer {
       }
     }
 
+    return new Token(this.regexString.substring(startIdx, this.currentIdx - 1), TokenType.SUBREGEX);
+  }
+
+  nextGroup(): Token {
+    let startIdx = this.currentIdx;
+    let currentToken = this.nextToken();
+
+    switch (currentToken.type) {
+      case TokenType.PIPE:
+      case TokenType.PLUS:
+      case TokenType.STAR:
+      case TokenType.QUESTION_MARK:
+        return new Token("Group cannot start with operator!", TokenType.ERROR);
+      case TokenType.EOI:
+        return new Token("Group cannot be empty!", TokenType.ERROR);
+      case TokenType.CLOSING_PAREN:
+        return new Token("Group cannot start with '('!", TokenType.ERROR);
+      case TokenType.OPENING_PAREN: {
+        // consume the parentheses
+        let token = this.getParentheses();
+        if (token.type == TokenType.ERROR) {
+          return new Token("Error while trying to get next group: " + token.text, TokenType.ERROR);
+        }
+        // if next token is an operator, also consume it
+        if (OPERATOR_TOKENS.includes(this.lookAhead().type)) {
+          this.nextToken();
+        }
+      } break;
+      case TokenType.SYMBOL: {
+        // if next token is an operator, also consume it
+        if (OPERATOR_TOKENS.includes(this.lookAhead().type)) {
+          this.nextToken();
+        }
+      } break;
+    }
+
     return new Token(this.regexString.substring(startIdx, this.currentIdx), TokenType.SUBREGEX);
   }
 }
@@ -258,16 +296,14 @@ export function regexToAut(regex: string, label: string): Automaton {
 
   let automatons: Array<Automaton> = [];
   let labelCounter = 0;
-  let doPipe = false;
   while (currentToken.type != TokenType.EOI) {
-    console.log(currentToken);
     switch (currentToken.type) {
       case TokenType.OPENING_PAREN: {
         const subregex: Token = lexer.getParentheses();
         if (subregex.type == TokenType.ERROR) {
           throw new Error(subregex.text);
         }
-        let aut = regexToAut(subregex.text, label + "X");
+        let aut = regexToAut(subregex.text, label + "RX");
         automatons.push(aut);
       } break;
       case TokenType.CLOSING_PAREN: {
@@ -299,24 +335,21 @@ export function regexToAut(regex: string, label: string): Automaton {
           throw new Error("Unexpected end of input after '|' operator!");
         }
 
-        currentToken = lexer.nextToken();
-        doPipe = true;
-        continue;
+        let aut1 = automatons.pop();
+        if (aut1 === undefined) {
+          throw new Error("Operator '|' needs two subexpressions!");
+        }
+        let subexpr = lexer.nextGroup();
+        if (subexpr.type == TokenType.ERROR) {
+          throw new Error(subexpr.text);
+        }
+
+        let aut2 = regexToAut(subexpr.text, label + "PX")
+        automatons.push(rtaPipe(aut1, aut2, label + "|" + labelCounter.toString()));
+        labelCounter += 1;
       } break;
     }
-    
-    if (doPipe) {
-      doPipe = false;
-      let aut1 = automatons.pop();
-      let aut2 = automatons.pop();
 
-      if (aut1 === undefined || aut2 === undefined) {
-        throw new Error("Operator '|' needs two subexpressions!");
-      }
-
-      automatons.push(rtaPipe(aut1, aut2, label + "|" + labelCounter.toString()));
-      labelCounter += 1;
-    }
     currentToken = lexer.nextToken();
   }
 
@@ -402,9 +435,10 @@ function rtaQuestionMark(aut: Automaton, label: string): Automaton {
   let initialStates = aut.initialStates;
   let finalStates = aut.finalStates;
 
+  const newStateCount = aut.stateCount + 2;
   const newStateNames = aut.stateNames.concat(["I" + label, "F" + label])
-  const newInitialStateIdx = aut.stateCount - 2;
-  const newFinalStateIdx = aut.stateCount - 1;
+  const newInitialStateIdx = newStateCount - 2;
+  const newFinalStateIdx = newStateCount - 1;
   let newTransitions = aut.transitions;
   
   for (let i of initialStates) {
@@ -416,7 +450,7 @@ function rtaQuestionMark(aut: Automaton, label: string): Automaton {
   }
 
   const opts: AutomatonOpts = {
-    stateCount: aut.stateCount + 2,
+    stateCount: newStateCount,
     alphabet: aut.alphabet,
     stateNames: newStateNames,
     initialStates: [newInitialStateIdx],
@@ -498,9 +532,5 @@ function rtaStar(aut: Automaton, label: string): Automaton {
     transitions: newTransitions
   };
 
-  console.log(opts);
-
   return makeAut(AutomatonType.ENFA, opts);
 }
-
-function regexToAutRec(regex: string) {}

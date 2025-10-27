@@ -35,9 +35,10 @@ export default function makeVis(aut: Automaton, containerRef: any): Network {
         arrows: { to: { enabled: true, scaleFactor: 1.2 } },
       },
       physics: {
-        enabled: true,
-        stabilization: true,
+        enabled: false,
+        stabilization: { iterations: 1000 },
       },
+      layout: { improvedLayout: true }
     };
 
     const network =  new Network(containerRef.current, data, options);
