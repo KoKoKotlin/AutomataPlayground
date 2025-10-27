@@ -1,7 +1,7 @@
 import React, { useRef, useState, type Ref } from 'react';
 import './App.css'
 import AutomataGraph from './AutomataGraph';
-import { Automaton, AutomatonType, EPSILON, makeAut, mt, type AutomatonOpts, type Transition } from './Automatons';
+import { Automaton, AutomatonType, EPSILON, makeAut, mt, regexToAut, type AutomatonOpts, type Transition } from './Automatons';
 import type { Network } from 'vis';
 
 
@@ -55,8 +55,10 @@ export default function App() {
     opts = autOptsFromText(INITIAL_JSON);
   }
 
-  const aut = makeAut(AutomatonType.DFA, opts);
-
+  // const aut = makeAut(AutomatonType.DFA, opts);
+  const regex = "a|b*"
+  const aut = regexToAut("a|b*", "1");
+  console.log(aut);
   function onSetWord() {
     aut.reset();
     currentWord = wordFieldRef!.current.value;
@@ -86,6 +88,7 @@ export default function App() {
           <button onClick={ () => onSetWord() }>Set Word</button>
           <button onClick={ () => onReadChar() }>Read Next Character</button>
           <p ref={wordPRef}></p>
+          <p>Current Regex: {regex}</p>
         </div>
         <div><textarea onChange={e => setText(e.target.value)} style={{ width: "500px", height: "100%", boxSizing: "border-box" }} defaultValue={INITIAL_JSON}></textarea></div>
       </div>
