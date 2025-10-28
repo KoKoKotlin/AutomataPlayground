@@ -1,4 +1,4 @@
-import React, { useRef, useState, type Ref } from "react";
+import React, { useRef, useState, type Ref, type RefObject } from "react";
 import "./App.css";
 import AutomataGraph from "./AutomataGraph";
 import {
@@ -24,10 +24,10 @@ let currentWord = "";
 let currentCharIdx = 0;
 
 export default function App() {
-  const wordFieldRef: Ref<HTMLInputElement> = useRef(null);
-  const wordPRef: Ref<HTMLParagraphElement> = useRef(null);
-  const regexRef: Ref<HTMLInputElement> = useRef(null);
-  const networkRef: Ref<Network> = useRef(null);
+  const wordFieldRef: RefObject<HTMLInputElement | null> = useRef(null);
+  const wordPRef: RefObject<HTMLParagraphElement | null> = useRef(null);
+  const regexRef: RefObject<HTMLInputElement | null> = useRef(null);
+  const networkRef: RefObject<Network | null> = useRef(null);
 
   const [state, setState]: [AppState, any] = useState({
     regex: "a*",
@@ -60,7 +60,7 @@ export default function App() {
 
   function onSetWord() {
     aut.reset();
-    currentWord = wordFieldRef!.current.value;
+    currentWord = wordFieldRef.current!.value;
     currentCharIdx = 0;
     updateWordDisplay();
     setState({ ...state, acceptStatus: null });
