@@ -48,7 +48,7 @@ function autOptsFromText(text: string): AutomatonOpts {
   return opts;
 }
 
-interface AppState {
+export interface AppState {
   regex: string;
   aut: Automaton;
   disableDebugNames: boolean;
@@ -92,8 +92,8 @@ export default function App() {
 
   function convertAut(type: AutomatonType) {
     switch (type) {
-      case AutomatonType.DFA: setState({ aut: aut.toDFA() }); break;
-      case AutomatonType.NFA: setState({ aut: aut.toNFA() }); break;
+      case AutomatonType.DFA: setState({ ...state, aut: aut.toDFA() }); break;
+      case AutomatonType.NFA: setState({ ...state, aut: aut.toNFA() }); break;
       case AutomatonType.ENFA: break;
       default: break;
     }
@@ -104,13 +104,22 @@ export default function App() {
       <h2 style={{ textAlign: "center", paddingTop: "20px" }}>Finite Automaton Example</h2>
       <div style={{display: "flex"}}>
         <div style={{ width: "800px", margin: "0 auto" }}>
-          <AutomataGraph aut={aut} networkRef={networkRef} />
-          <input ref={wordFieldRef} placeholder="Enter input word ..."/>
-          <button onClick={ () => onSetWord() }>Set Word</button>
-          <button onClick={ () => onReadChar() }>Read Next Character</button>
+          <AutomataGraph state={state} networkRef={networkRef} />
+          <div style={{display: "flex", justifyContent: "space-between"}}>
+            <div>
+              <input ref={wordFieldRef} placeholder="Enter input word ..."/>
+              <button onClick={ () => onSetWord() }>Set Word</button>
+              <button onClick={ () => onReadChar() }>Read Next Character</button>
+            </div>
+            <div>
+              <label>Hide Debug Names:</label>
+              <input type="checkbox" checked={state.disableDebugNames} 
+                     onClick={e => setState({ ...state, disableDebugNames: !state.disableDebugNames })}></input>
+            </div>
+          </div>
           <p ref={wordPRef}></p>
           <input ref={regexRef} placeholder='Enter regex ...'></input>
-          <button onClick={ e => setState({regex: regexRef.current.value, aut: regexToAut(regexRef.current?.value, "1")}) }>Create {EPSILON}-NFA from Regex</button>
+          <button onClick={ e => setState({...state, regex: regexRef.current.value, aut: regexToAut(regexRef.current?.value, "1")}) }>Create {EPSILON}-NFA from Regex</button>
           <button onClick={ e => convertAut(AutomatonType.NFA) }>Convert to NFA</button>
           <button onClick={ e => convertAut(AutomatonType.DFA) }>Convert to DFA</button>
         </div>

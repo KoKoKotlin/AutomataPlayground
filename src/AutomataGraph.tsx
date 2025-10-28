@@ -3,15 +3,16 @@ import React, { useEffect, useRef, type Ref } from "react";
 import { Network } from "vis";
 import makeVis from "./visFactory";
 import type { Automaton } from "./Automatons";
+import type { AppState } from "./App";
 
-export default function AutomataGraph(props: { aut: Automaton, networkRef: Ref<Network> }) {
+export default function AutomataGraph(props: { state: AppState, networkRef: Ref<Network> }) {
   const containerRef: any = useRef(null);
 
   useEffect(() => {
-    const network = makeVis(props.aut, containerRef, true);
+    const network = makeVis(props.state.aut, containerRef, props.state.disableDebugNames);
     props.networkRef!.current = network;
     return () => network.destroy();
-  }, [props.aut]);
+  }, [props.state.aut, props.state.disableDebugNames]);
 
   return (
     <div
