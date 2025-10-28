@@ -68,18 +68,18 @@ export abstract class Automaton {
   }
 
   readChar(c: string) {
-    let nextStates: Array<number> = [];
+    let nextStates: Set<number> = new Set();
     this.highlightedEdges = [];
 
-    for (const from of this.currentStates) {
+    let currentStates = this.getEpsClojure(new Set(this.currentStates));
+    for (const from of currentStates) {
       const transitionsUsed = this.getAllTransitions(c, from);
-      this.highlightedEdges = this.highlightedEdges.concat(transitionsUsed.map(t => this.transitions.indexOf(t)));
-      const currNextStates = this.getEpsClojure(transitionsUsed.map(t => t.to));
-      nextStates = nextStates.concat(currNextStates);
+      transitionsUsed.forEach(t => this.highlightedEdges.push(this.transitions.indexOf(t)));
+      this.getEpsClojure(new Set(transitionsUsed.map(t => t.to))).forEach(idx => nextStates.add(idx));
     }
 
-    this.highlightedStates = nextStates;
-    this.currentStates = nextStates;
+    this.highlightedStates = Array.from(nextStates);
+    this.currentStates = Array.from(nextStates);
   }
 
   acceptsWord(s: string): boolean {
@@ -93,13 +93,16 @@ export abstract class Automaton {
     return this.currentStates.some(s => this.finalStates.includes(s));
   }
 
-  getEpsClojure(states: Array<number>): Array<number> {
-    let epsClojure: Array<number> = [];
-    for (const from of states) {
-      let nextStates = this.transitions.filter(t => t.character == EPSILON && t.from == from).map(t => t.to);
-      epsClojure = epsClojure.concat(nextStates);
+  getEpsClojure(states: Set<number>): Set<number> {
+    let epsClojure: Set<number> = new Set(states);
+    for (const from of epsClojure) {
+      this.transitions
+        .filter(t => t.character == EPSILON && t.from == from)
+        .forEach(t => {
+          this.highlightedEdges.push(this.transitions.indexOf(t));
+          epsClojure.add(t.to)
+        });
     }
-    epsClojure = epsClojure.concat(states);
 
     return epsClojure;
   }
