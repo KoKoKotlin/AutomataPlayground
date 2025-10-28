@@ -9,6 +9,7 @@ import {
   type AutomatonOpts,
 } from "./Automatons";
 import type { Network } from "vis";
+import AlgorithmDescription from "./DescriptionArea";
 
 export interface AppState {
   regex: string;
@@ -179,6 +180,39 @@ export default function App() {
                 Create ε-NFA
               </button>
             </div>
+          </div>
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              gap: "10px",
+              marginTop: "20px",
+              padding: "10px",
+              background: "#f0f0f0",
+              borderRadius: "8px",
+            }}
+          >
+            <label style={{ fontWeight: 600 }}>Regex Explanation:</label>
+            <ul style={{ paddingLeft: "20px", margin: 0, lineHeight: "1.5em" }}>
+              <li>
+                <b>Letters and other symbols</b>: a-z, A-Z, 0-9, or any symbols not used as regex syntax
+              </li>
+              <li>
+                <b>?</b>: zero or one occurrence of the preceding element
+              </li>
+              <li>
+                <b>*</b>: zero or more occurrences of the preceding element
+              </li>
+              <li>
+                <b>+</b>: one or more occurrences of the preceding element
+              </li>
+              <li>
+                <b>|</b>: alternative of two expressions (e.g., <code>a|b</code> means "a" or "b")
+              </li>
+              <li>
+                <b>()</b>: grouping of expressions (e.g., <code>(ab)*</code> means "ab" zero or more times)
+              </li>
+            </ul>
           </div>
 
           {/* Automaton Conversion */}
