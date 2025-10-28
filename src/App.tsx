@@ -15,7 +15,11 @@ export interface AppState {
   regex: string;
   aut: Automaton;
   disableDebugNames: boolean;
+  acceptStatus: boolean | null;
 }
+
+let currentWord = "";
+let currentCharIdx = 0;
 
 export default function App() {
   const wordFieldRef: Ref<HTMLInputElement> = useRef(null);
@@ -27,36 +31,38 @@ export default function App() {
     regex: "a*",
     aut: regexToAut("a*", "1"),
     disableDebugNames: true,
+    acceptStatus: null,
   });
 
   let aut = state.aut;
-
-  let currentWord = "";
-  let currentCharIdx = 0;
 
   function onSetWord() {
     aut.reset();
     currentWord = wordFieldRef!.current.value;
     currentCharIdx = 0;
     updateWordDisplay();
+    setState({ ...state, acceptStatus: null });
   }
 
   function onReadChar() {
     if (currentCharIdx >= currentWord.length) return;
 
-    aut.readChar(currentWord[currentCharIdx]);
+    const currentChar = currentWord[currentCharIdx];
+    aut.readChar(currentChar);
     currentCharIdx += 1;
 
     const network: Network = networkRef.current!;
-    network.setSelection(
-      {
-        nodes: aut.highlightedStates,
-        edges: aut.highlightedEdges,
-      },
-      { highlightEdges: false }
-    );
+    network.setSelection({
+      nodes: aut.highlightedStates,
+      edges: aut.highlightedEdges,
+    }, { highlightEdges: false });
 
     updateWordDisplay();
+
+    if (currentCharIdx === currentWord.length) {
+      const accepted = aut.isAccepted();
+      setState({ ...state, acceptStatus: accepted });
+    }
   }
 
   function updateWordDisplay() {
@@ -156,6 +162,23 @@ export default function App() {
               ref={wordPRef}
               style={{ fontFamily: "monospace", fontSize: "1.1em", marginTop: "5px" }}
             ></p>
+            {state.acceptStatus !== null && (
+            <div
+              style={{
+                marginTop: "10px",
+                padding: "8px 16px",
+                borderRadius: "6px",
+                background: state.acceptStatus ? "#d4edda" : "#f8d7da",
+                color: state.acceptStatus ? "#155724" : "#721c24",
+                border: `1px solid ${state.acceptStatus ? "#c3e6cb" : "#f5c6cb"}`,
+                fontWeight: 600,
+                textAlign: "center",
+                transition: "all 0.3s ease",
+              }}
+            >
+              {state.acceptStatus ? "✅ Word accepted!" : "❌ Word rejected!"}
+            </div>
+          )}
           </div>
 
           {/* Regex Input */}

@@ -100,6 +100,10 @@ export abstract class Automaton {
     return this.currentStates.some(s => this.finalStates.includes(s));
   }
 
+  isAccepted(): boolean {
+    return this.currentStates.some(idx => this.finalStates.includes(idx));
+  }
+
   getEpsClojure(states: Set<number>): Set<number> {
     let epsClojure: Set<number> = new Set(states);
     for (const from of epsClojure) {
