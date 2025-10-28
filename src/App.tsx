@@ -1,52 +1,14 @@
-import React, { useRef, useState, type Ref } from 'react';
-import './App.css'
-import AutomataGraph from './AutomataGraph';
-import { Automaton, AutomatonType, EPSILON, makeAut, mt, regexToAut, type AutomatonOpts, type Transition } from './Automatons';
-import type { Network } from 'vis';
-
-/* TODO:
-    - implement switching between debug and number state names
-    - better color scheme
-    - display if word is accepted or not after reading the last character
-    - display all the states the automaton is currently in
-    - display currently read character with color
-    - better ui
-*/
-
-const INITIAL_JSON = `{
-    "stateNames": ["q0", "q1", "E"],
-    "finalStates": [1],
-    "initialStates": [0],
-    "alphabet": ["a", "b"],
-    "transitions":  [
-      {"character": "a", "from": 0, "to": 0},
-      {"character": "b", "from": 0, "to": 1},
-      {"character": "a", "from": 1, "to": 2},
-      {"character": "b", "from": 1, "to": 1},
-      {"character": "a", "from": 2, "to": 2},
-      {"character": "b", "from": 2, "to": 2}
-    ]
-}`
-
-function replaceEps(c: string): string {
-  if (c === "EPSILON") return EPSILON;
-  else return c;
-}
-
-function autOptsFromText(text: string): AutomatonOpts {
-  const json = JSON.parse(text);
-
-  const opts = {
-    stateCount: json.stateNames.length,
-    stateNames: json.stateNames,
-    finalStates: json.finalStates,
-    initialStates: json.initialStates,
-    alphabet: json.alphabet.map((c: string) => replaceEps(c)),
-    transitions: json.transitions.map((t: Transition) => ({ character: replaceEps(t.character), to: t.to, from: t.from })),
-  }  
-
-  return opts;
-}
+import React, { useRef, useState, type Ref } from "react";
+import "./App.css";
+import AutomataGraph from "./AutomataGraph";
+import {
+  Automaton,
+  AutomatonType,
+  EPSILON,
+  regexToAut,
+  type AutomatonOpts,
+} from "./Automatons";
+import type { Network } from "vis";
 
 export interface AppState {
   regex: string;
@@ -74,8 +36,8 @@ export default function App() {
   function onSetWord() {
     aut.reset();
     currentWord = wordFieldRef!.current.value;
-    wordPRef.current.textContent = "Current Word: " + currentWord;
     currentCharIdx = 0;
+    updateWordDisplay();
   }
 
   function onReadChar() {
@@ -83,45 +45,169 @@ export default function App() {
 
     aut.readChar(currentWord[currentCharIdx]);
     currentCharIdx += 1;
+
     const network: Network = networkRef.current!;
-    network.setSelection({
-      nodes: aut.highlightedStates,
-      edges: aut.highlightedEdges,
-    }, { highlightEdges: false });
+    network.setSelection(
+      {
+        nodes: aut.highlightedStates,
+        edges: aut.highlightedEdges,
+      },
+      { highlightEdges: false }
+    );
+
+    updateWordDisplay();
+  }
+
+  function updateWordDisplay() {
+    if (!wordPRef.current) return;
+
+    const chars = currentWord.split("").map((c, i) => {
+      if (i === currentCharIdx)
+        return `<span style="background: yellow; font-weight: bold;">${c}</span>`;
+      else return c;
+    });
+
+    wordPRef.current.innerHTML =
+      "Current Word: " + (chars.length ? chars.join("") : "");
   }
 
   function convertAut(type: AutomatonType) {
     switch (type) {
-      case AutomatonType.DFA: setState({ ...state, aut: aut.toDFA() }); break;
-      case AutomatonType.NFA: setState({ ...state, aut: aut.toNFA() }); break;
-      case AutomatonType.ENFA: break;
-      default: break;
+      case AutomatonType.DFA:
+        setState({ ...state, aut: aut.toDFA() });
+        break;
+      case AutomatonType.NFA:
+        setState({ ...state, aut: aut.toNFA() });
+        break;
+      case AutomatonType.ENFA:
+        break;
+      default:
+        break;
     }
   }
 
   return (
-    <div style={{ fontFamily: "sans-serif", background: "#fafafa", height: "100vh" }}>
-      <h2 style={{ textAlign: "center", paddingTop: "20px" }}>Finite Automaton Example</h2>
-      <div style={{display: "flex"}}>
-        <div style={{ width: "800px", margin: "0 auto" }}>
+    <div
+      style={{
+        fontFamily: "sans-serif",
+        background: "#f5f5f5",
+        minHeight: "100vh",
+        padding: "20px",
+      }}
+    >
+      <h2 style={{ textAlign: "center", marginBottom: "20px" }}>
+        Finite Automaton Example
+      </h2>
+
+      <div
+        style={{
+          display: "flex",
+          gap: "40px",
+          justifyContent: "center",
+          alignItems: "flex-start",
+        }}
+      >
+        {/* Automaton Graph */}
+        <div
+          style={{
+            width: "800px",
+            background: "white",
+            padding: "20px",
+            borderRadius: "12px",
+            boxShadow: "0px 4px 12px rgba(0,0,0,0.1)",
+          }}
+        >
           <AutomataGraph state={state} networkRef={networkRef} />
-          <div style={{display: "flex", justifyContent: "space-between"}}>
-            <div>
-              <input ref={wordFieldRef} placeholder="Enter input word ..."/>
-              <button onClick={ () => onSetWord() }>Set Word</button>
-              <button onClick={ () => onReadChar() }>Read Next Character</button>
+        </div>
+
+        {/* Controls */}
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            gap: "20px",
+            minWidth: "300px",
+          }}
+        >
+          {/* Word Input */}
+          <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+            <label style={{ fontWeight: 600 }}>Input Word:</label>
+            <div style={{ display: "flex", gap: "10px" }}>
+              <input
+                ref={wordFieldRef}
+                placeholder="Enter input word..."
+                style={{ flex: 1, padding: "6px 10px", borderRadius: "6px", border: "1px solid #ccc" }}
+              />
+              <button
+                onClick={onSetWord}
+                style={{ padding: "6px 12px", borderRadius: "6px", background: "#4caf50", color: "white", border: "none" }}
+              >
+                Set Word
+              </button>
+              <button
+                onClick={onReadChar}
+                style={{ padding: "6px 12px", borderRadius: "6px", background: "#2196f3", color: "white", border: "none" }}
+              >
+                Read Next
+              </button>
             </div>
-            <div>
-              <label>Hide Debug Names:</label>
-              <input type="checkbox" checked={state.disableDebugNames} 
-                     onClick={e => setState({ ...state, disableDebugNames: !state.disableDebugNames })}></input>
+            <p
+              ref={wordPRef}
+              style={{ fontFamily: "monospace", fontSize: "1.1em", marginTop: "5px" }}
+            ></p>
+          </div>
+
+          {/* Regex Input */}
+          <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+            <label style={{ fontWeight: 600 }}>Regex:</label>
+            <div style={{ display: "flex", gap: "10px" }}>
+              <input
+                ref={regexRef}
+                placeholder="Enter regex..."
+                style={{ flex: 1, padding: "6px 10px", borderRadius: "6px", border: "1px solid #ccc" }}
+              />
+              <button
+                onClick={() =>
+                  setState({
+                    ...state,
+                    regex: regexRef.current.value,
+                    aut: regexToAut(regexRef.current?.value, "1"),
+                  })
+                }
+                style={{ padding: "6px 12px", borderRadius: "6px", background: "#ff9800", color: "white", border: "none" }}
+              >
+                Create ε-NFA
+              </button>
             </div>
           </div>
-          <p ref={wordPRef}></p>
-          <input ref={regexRef} placeholder='Enter regex ...'></input>
-          <button onClick={ e => setState({...state, regex: regexRef.current.value, aut: regexToAut(regexRef.current?.value, "1")}) }>Create {EPSILON}-NFA from Regex</button>
-          <button onClick={ e => convertAut(AutomatonType.NFA) }>Convert to NFA</button>
-          <button onClick={ e => convertAut(AutomatonType.DFA) }>Convert to DFA</button>
+
+          {/* Automaton Conversion */}
+          <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+            <button
+              onClick={() => convertAut(AutomatonType.NFA)}
+              style={{ padding: "6px 12px", borderRadius: "6px", background: "#607d8b", color: "white", border: "none" }}
+            >
+              Convert to NFA
+            </button>
+            <button
+              onClick={() => convertAut(AutomatonType.DFA)}
+              style={{ padding: "6px 12px", borderRadius: "6px", background: "#9c27b0", color: "white", border: "none" }}
+            >
+              Convert to DFA
+            </button>
+          </div>
+
+          {/* Options */}
+          <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+            <label>Hide Debug Names:</label>
+            <input
+              type="checkbox"
+              checked={state.disableDebugNames}
+              onChange={(e) =>
+                setState({ ...state, disableDebugNames: !state.disableDebugNames })
+              }
+            />
+          </div>
         </div>
       </div>
     </div>
