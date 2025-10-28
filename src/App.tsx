@@ -51,6 +51,7 @@ function autOptsFromText(text: string): AutomatonOpts {
 interface AppState {
   regex: string;
   aut: Automaton;
+  disableDebugNames: boolean;
 }
 
 export default function App() {
@@ -62,6 +63,7 @@ export default function App() {
   const [state, setState]: [AppState, any] = useState({
     regex: "a*",
     aut: regexToAut("a*", "1"),
+    disableDebugNames: true,
   });
 
   let aut = state.aut;

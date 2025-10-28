@@ -8,7 +8,7 @@ export default function AutomataGraph(props: { aut: Automaton, networkRef: Ref<N
   const containerRef: any = useRef(null);
 
   useEffect(() => {
-    const network = makeVis(props.aut, containerRef);
+    const network = makeVis(props.aut, containerRef, true);
     props.networkRef!.current = network;
     return () => network.destroy();
   }, [props.aut]);

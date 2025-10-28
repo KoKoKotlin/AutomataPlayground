@@ -6,10 +6,25 @@ const MAINCOLOR = "red";
 const FINAL_STATE_COLOR = "#00ff00";
 const SECOND_COLOR = "black";
 
-export default function makeVis(aut: Automaton, containerRef: any): Network {
-    let nodes: any = aut.stateNames.map((name, idx) => ({ id: idx, label: name, color: { background: MAINCOLOR, border: SECOND_COLOR } }));
+export default function makeVis(aut: Automaton, containerRef: any, disableDebugNames: boolean): Network {
+    let nodes: any = aut.stateNames.map((name, idx) => 
+      ({ id: idx, label: (disableDebugNames) ? idx.toString() : name, color: { background: MAINCOLOR, border: SECOND_COLOR } }));
     let edges: any = aut.transitions
       .map((t, idx) => ({ id: idx, from: t.from, to: t.to, color: { color: MAINCOLOR }, label: t.character, arrows: "to" }))
+
+    let fromToMap = new Map<string, number>();
+    for (let i = 0; i < edges.length; i++) {
+      const edge = edges[i];
+      const key = [edge.from, edge.to].join(",");
+      const count = fromToMap.get(key) || 0;
+      if (edge.from == edge.to) {
+        edges[i]["selfReferenceSize"] = 15 + count * 7;
+      } else {
+        edges[i]["smooth"] = { enabled: true, type: "curvedCCW", roundness: 0.2 + count * 0.15 };
+      }
+      fromToMap.set(key, count + 1);
+    }
+    console.log(edges);
 
     aut.initialStates.forEach((stateIdx, idx) => {
       const hiddenIdx = -idx - 1;
@@ -30,9 +45,10 @@ export default function makeVis(aut: Automaton, containerRef: any): Network {
         borderWidth: 2,
       },
       edges: {
-        smooth: { type: "curvedCW", roundness: 0.2 },
+        smooth: { type: "curvedCCW", roundness: 0.2 },
         font: { align: "top" },
         arrows: { to: { enabled: true, scaleFactor: 1.2 } },
+        selfReferenceSize: 40,
       },
       physics: {
         enabled: false,
