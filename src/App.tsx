@@ -4,6 +4,14 @@ import AutomataGraph from './AutomataGraph';
 import { Automaton, AutomatonType, EPSILON, makeAut, mt, regexToAut, type AutomatonOpts, type Transition } from './Automatons';
 import type { Network } from 'vis';
 
+/* TODO:
+    - implement switching between debug and number state names
+    - better color scheme
+    - display if word is accepted or not after reading the last character
+    - display all the states the automaton is currently in
+    - display currently read character with color
+    - better ui
+*/
 
 const INITIAL_JSON = `{
     "stateNames": ["q0", "q1", "E"],
@@ -39,18 +47,28 @@ function autOptsFromText(text: string): AutomatonOpts {
 
   return opts;
 }
+
+interface AppState {
+  regex: string;
+  aut: Automaton;
+}
+
 export default function App() {
-  const [regex, setRegex] = useState("a*b*");
   const wordFieldRef: Ref<HTMLInputElement> = useRef(null);
   const wordPRef: Ref<HTMLParagraphElement> = useRef(null);
   const regexRef: Ref<HTMLInputElement> = useRef(null);
   const networkRef: Ref<Network> = useRef(null);
 
+  const [state, setState]: [AppState, any] = useState({
+    regex: "a*",
+    aut: regexToAut("a*", "1"),
+  });
+
+  let aut = state.aut;
+
   let currentWord = "";
   let currentCharIdx = 0;
 
-  // const aut = makeAut(AutomatonType.DFA, opts);
-  const aut = regexToAut(regex, "1");
   function onSetWord() {
     aut.reset();
     currentWord = wordFieldRef!.current.value;
@@ -70,6 +88,15 @@ export default function App() {
     }, { highlightEdges: false });
   }
 
+  function convertAut(type: AutomatonType) {
+    switch (type) {
+      case AutomatonType.DFA: setState({ aut: aut.toDFA() }); break;
+      case AutomatonType.NFA: setState({ aut: aut.toNFA() }); break;
+      case AutomatonType.ENFA: break;
+      default: break;
+    }
+  }
+
   return (
     <div style={{ fontFamily: "sans-serif", background: "#fafafa", height: "100vh" }}>
       <h2 style={{ textAlign: "center", paddingTop: "20px" }}>Finite Automaton Example</h2>
@@ -81,7 +108,9 @@ export default function App() {
           <button onClick={ () => onReadChar() }>Read Next Character</button>
           <p ref={wordPRef}></p>
           <input ref={regexRef} placeholder='Enter regex ...'></input>
-          <button onClick={ e => setRegex(regexRef.current.value) }>Create {EPSILON}-NFA from Regex</button>
+          <button onClick={ e => setState({regex: regexRef.current.value, aut: regexToAut(regexRef.current?.value, "1")}) }>Create {EPSILON}-NFA from Regex</button>
+          <button onClick={ e => convertAut(AutomatonType.NFA) }>Convert to NFA</button>
+          <button onClick={ e => convertAut(AutomatonType.DFA) }>Convert to DFA</button>
         </div>
       </div>
     </div>

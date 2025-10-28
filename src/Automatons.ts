@@ -1,5 +1,14 @@
 export const EPSILON = "ε";
 
+function atos(...numbers: number[]): string {
+  return numbers.join(",");
+}
+
+function stoa(s: string): Array<number> {
+  return s.split(",").map(d => parseInt(d));
+}
+
+
 export interface Transition {
   character: string;
   from: number;
@@ -42,7 +51,7 @@ export abstract class Automaton {
   get initialStates(): Array<number> { return this.opts.initialStates; };
   get transitions(): Array<Transition> { return this.opts.transitions; };
 
-  private currentStates: Array<number>;
+  protected currentStates: Array<number>;
 
   highlightedStates: Array<number> = [];
   highlightedEdges: Array<number> = [];
@@ -53,7 +62,6 @@ export abstract class Automaton {
     this.highlightedStates = this.initialStates;
   }
 
-  // FIXME: check if epsilon clojure is needed on initial states
   reset() {
     this.currentStates = this.initialStates;
     this.highlightedStates = this.initialStates;
@@ -63,7 +71,6 @@ export abstract class Automaton {
   abstract checkCorrect(): boolean;
 
   getAllTransitions(c: string, from: number): Array<Transition> {
-    let transitionsIdx = [];
     return this.transitions.filter(t => t.character === c && t.from === from);
   }
 
@@ -106,6 +113,9 @@ export abstract class Automaton {
 
     return epsClojure;
   }
+
+  abstract toNFA(): Automaton;
+  abstract toDFA(): Automaton;
 }
 
 class DFA extends Automaton {
@@ -133,7 +143,15 @@ class DFA extends Automaton {
 
     // only one initial state
     return this.initialStates.length === 1;
-  }  
+  }
+
+  toNFA(): Automaton {
+    return this;
+  }
+
+  toDFA(): Automaton {
+    return this;
+  }
 }
 
 class NFA extends Automaton {
@@ -154,7 +172,55 @@ class NFA extends Automaton {
 
     // at least one initial state
     return this.initialStates.length > 0;
-  }  
+  }
+  
+  toNFA(): Automaton {
+    return this;
+  }
+
+  toDFA(): Automaton {
+    let dfaStates: Array<string> = [];
+    let dfaTransitions: Array<Transition> = [];
+
+    dfaStates.push(atos(...this.initialStates));
+    let currentStateIdx = 0;
+    for (const state of dfaStates) {
+      let nfaStates = stoa(state);
+      for (const c of this.alphabet) {
+        let newStates: Set<number> = new Set();
+        for (const from of nfaStates) {
+          this.getAllTransitions(c, from).forEach(t => newStates.add(t.to));
+        }
+        let newDfaState = atos(...Array.from(newStates));
+        if (!dfaStates.includes(newDfaState)) {
+          dfaStates.push(newDfaState);
+        }
+        let newStateIdx = dfaStates.indexOf(newDfaState);        
+        dfaTransitions.push(mt(c, currentStateIdx, newStateIdx));
+      }
+      currentStateIdx++;
+    }
+
+    let finalStates = [];
+    currentStateIdx = 0;
+    for (const state of dfaStates) {
+      if (stoa(state).some(idx => this.finalStates.includes(idx))) {
+        finalStates.push(currentStateIdx);
+      }
+      currentStateIdx++;
+    }
+
+    let opts: AutomatonOpts = {
+      stateCount: dfaStates.length,
+      stateNames: dfaStates,
+      transitions: dfaTransitions,
+      alphabet: this.alphabet,
+      initialStates: [0],
+      finalStates: finalStates,
+    };
+
+    return makeAut(AutomatonType.DFA, opts);
+  }
 }
 
 class ENFA extends Automaton {
@@ -172,7 +238,35 @@ class ENFA extends Automaton {
 
     // at least one initial state
     return this.initialStates.length > 0;
-  }  
+  }
+
+  toDFA(): Automaton {
+    return this.toNFA().toDFA(); 
+  }
+
+  toNFA(): Automaton {
+    let nfaFinalstates = this.finalStates.concat(this.initialStates
+      .filter(idx => Array.from(this.getEpsClojure(new Set([idx]))).some(fIdx => this.finalStates.includes(fIdx))));
+    
+    let nfaTransitions: Array<Transition> = [];
+    for (let i = 0; i < this.stateCount; i++) {
+      for (const c of this.alphabet) {
+        this.currentStates = [i];
+        this.readChar(c);
+        this.currentStates.forEach(idx => nfaTransitions.push(mt(c, i, idx)));
+      }
+    }
+
+    let opts: AutomatonOpts = {
+      stateCount: this.stateCount,
+      stateNames: this.stateNames,
+      transitions: nfaTransitions,
+      alphabet: this.alphabet,
+      initialStates: Array.from(this.getEpsClojure(new Set(this.initialStates))),
+      finalStates: nfaFinalstates
+    };
+    return makeAut(AutomatonType.NFA, opts);
+  }
 }
 
 enum TokenType {
