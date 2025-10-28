@@ -298,6 +298,15 @@ class Token {
   }
 }
 
+export class RegexError extends Error {
+  position: number;
+  constructor(message: string, position: number) {
+    super(message);
+    this.name = "RegexError";
+    this.position = position;
+  }
+}
+
 class Lexer {
   regexString: string;
   currentIdx: number;
@@ -390,71 +399,97 @@ class Lexer {
   }
 }
 
-// TODO: proper error display for users
 export function regexToAut(regex: string, label: string): Automaton {
-  let lexer = new Lexer(regex);
-  let currentToken = lexer.nextToken();
+  try {
+    const lexer = new Lexer(regex);
+    let currentToken = lexer.nextToken();
 
-  let automatons: Array<Automaton> = [];
-  let labelCounter = 0;
-  while (currentToken.type != TokenType.EOI) {
-    switch (currentToken.type) {
-      case TokenType.OPENING_PAREN: {
-        const subregex: Token = lexer.getParentheses();
-        if (subregex.type == TokenType.ERROR) {
-          throw new Error(subregex.text);
+    let automatons: Array<Automaton> = [];
+    let labelCounter = 0;
+
+    while (currentToken.type !== TokenType.EOI) {
+      switch (currentToken.type) {
+        case TokenType.OPENING_PAREN: {
+          const subregex = lexer.getParentheses();
+          if (subregex.type === TokenType.ERROR)
+            throw new RegexError(subregex.text, lexer.currentIdx);
+          const aut = regexToAut(subregex.text, label + "RX");
+          automatons.push(aut);
+          break;
         }
-        let aut = regexToAut(subregex.text, label + "RX");
-        automatons.push(aut);
-      } break;
-      case TokenType.CLOSING_PAREN: {
-        throw new Error(`Parenthesis at ${lexer.currentIdx - 1} has no mathching opening paranthesis!`); // TODO: proper error display for users
-      } break;
-      case TokenType.SYMBOL: {
-        const aut = rtaSymbol(currentToken.text, label + "S" + labelCounter.toString());
-        automatons.push(aut);
-        labelCounter += 1;
-      } break;
-      case TokenType.PLUS:
-      case TokenType.QUESTION_MARK:
-      case TokenType.STAR: {
-        let aut = automatons.pop();
-        if (aut === undefined) throw new Error(`Operator '${currentToken.text}' at ${lexer.currentIdx - 1} has no expression in front!`);
-        switch (currentToken.type) {
-          case TokenType.PLUS: 
-            aut = rtaPlus(aut, label + "+" + labelCounter.toString()); break;
-          case TokenType.QUESTION_MARK:
-            aut = rtaQuestionMark(aut, label + "?" + labelCounter.toString()); break;
-          case TokenType.STAR:
-            aut = rtaStar(aut, label + "*" + labelCounter.toString()); break; 
-        }
-        labelCounter += 1;
-        automatons.push(aut);
-      } break;
-      case TokenType.PIPE: {
-        if (lexer.lookAhead().type === TokenType.EOI) {
-          throw new Error("Unexpected end of input after '|' operator!");
+        case TokenType.CLOSING_PAREN:
+          throw new RegexError(
+            `Parenthesis at ${lexer.currentIdx - 1} has no matching opening parenthesis!`,
+            lexer.currentIdx - 1
+          );
+
+        case TokenType.SYMBOL: {
+          const aut = rtaSymbol(currentToken.text, label + "S" + labelCounter.toString());
+          automatons.push(aut);
+          labelCounter += 1;
+          break;
         }
 
-        let aut1 = automatons.pop();
-        if (aut1 === undefined) {
-          throw new Error("Operator '|' needs two subexpressions!");
-        }
-        let subexpr = lexer.nextGroup();
-        if (subexpr.type == TokenType.ERROR) {
-          throw new Error(subexpr.text);
+        case TokenType.PLUS:
+        case TokenType.QUESTION_MARK:
+        case TokenType.STAR: {
+          const aut = automatons.pop();
+          if (!aut)
+            throw new RegexError(
+              `Operator '${currentToken.text}' at ${lexer.currentIdx - 1} has no expression in front!`,
+              lexer.currentIdx - 1
+            );
+
+          let newAut;
+          switch (currentToken.type) {
+            case TokenType.PLUS:
+              newAut = rtaPlus(aut, label + "+" + labelCounter.toString());
+              break;
+            case TokenType.QUESTION_MARK:
+              newAut = rtaQuestionMark(aut, label + "?" + labelCounter.toString());
+              break;
+            case TokenType.STAR:
+              newAut = rtaStar(aut, label + "*" + labelCounter.toString());
+              break;
+          }
+          labelCounter += 1;
+          automatons.push(newAut!);
+          break;
         }
 
-        let aut2 = regexToAut(subexpr.text, label + "PX")
-        automatons.push(rtaPipe(aut1, aut2, label + "|" + labelCounter.toString()));
-        labelCounter += 1;
-      } break;
+        case TokenType.PIPE: {
+          if (lexer.lookAhead().type === TokenType.EOI)
+            throw new RegexError("Unexpected end of input after '|' operator!", lexer.currentIdx);
+
+          const aut1 = automatons.pop();
+          if (!aut1)
+            throw new RegexError("Operator '|' needs two subexpressions!", lexer.currentIdx);
+
+          const subexpr = lexer.nextGroup();
+          if (subexpr.type === TokenType.ERROR)
+            throw new RegexError(subexpr.text, lexer.currentIdx);
+
+          const aut2 = regexToAut(subexpr.text, label + "PX");
+          automatons.push(rtaPipe(aut1, aut2, label + "|" + labelCounter.toString()));
+          labelCounter += 1;
+          break;
+        }
+      }
+
+      currentToken = lexer.nextToken();
     }
 
-    currentToken = lexer.nextToken();
-  }
+    if (automatons.length === 0)
+      throw new RegexError("Empty or invalid regex!", 0);
 
-  return automatons.reduce((acc, aut) => (acc === undefined) ? aut : rtaConcat(acc, aut));
+    return automatons.reduce((acc, aut) => (acc === undefined ? aut : rtaConcat(acc, aut)));
+  } catch (e) {
+    if (e instanceof RegexError) {
+      console.error(`Regex error: ${e.message}!`);
+      throw e;
+    }
+    throw new Error("Unexpected internal error in regex parser!");
+  }
 }
 
 function rtaConcat(aut1: Automaton, aut2: Automaton): Automaton {

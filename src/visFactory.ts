@@ -7,6 +7,7 @@ const FINAL_STATE_COLOR = "#00ff00";
 const SECOND_COLOR = "black";
 
 export default function makeVis(aut: Automaton, containerRef: any, disableDebugNames: boolean): Network {
+    console.log(aut);
     let nodes: any = aut.stateNames.map((name, idx) => 
       ({ id: idx, label: (disableDebugNames) ? idx.toString() : name, color: { background: MAINCOLOR, border: SECOND_COLOR } }));
     let edges: any = aut.transitions

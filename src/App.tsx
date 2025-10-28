@@ -5,6 +5,7 @@ import {
   Automaton,
   AutomatonType,
   EPSILON,
+  RegexError,
   regexToAut,
   type AutomatonOpts,
 } from "./Automatons";
@@ -16,6 +17,7 @@ export interface AppState {
   aut: Automaton;
   disableDebugNames: boolean;
   acceptStatus: boolean | null;
+  error: string | null;
 }
 
 let currentWord = "";
@@ -32,7 +34,27 @@ export default function App() {
     aut: regexToAut("a*", "1"),
     disableDebugNames: true,
     acceptStatus: null,
+    error: null,
   });
+
+  function regexToAutE(regex: string | undefined) {
+    if (regex === undefined) {
+      setState({ ...state, error: "Empty Regex is invalid!" });
+      return;
+    }
+
+    try {
+      const automaton = regexToAut(regex, "1");
+      setState({ ...state, regex: regex, aut: automaton, error: null });
+    } catch (e) {
+      console.log(state.aut);
+      if (e instanceof RegexError) {
+        setState({ ...state, error: `Error: ${e.message}` });
+      } else {
+        setState({ ...state, error: "Unknown error while parsing regex." });
+      }
+    }
+  }
 
   let aut = state.aut;
 
@@ -191,18 +213,17 @@ export default function App() {
                 style={{ flex: 1, padding: "6px 10px", borderRadius: "6px", border: "1px solid #ccc" }}
               />
               <button
-                onClick={() =>
-                  setState({
-                    ...state,
-                    regex: regexRef.current.value,
-                    aut: regexToAut(regexRef.current?.value, "1"),
-                  })
-                }
+                onClick={() => regexToAutE(regexRef.current?.value) }
                 style={{ padding: "6px 12px", borderRadius: "6px", background: "#ff9800", color: "white", border: "none" }}
               >
                 Create ε-NFA
               </button>
             </div>
+            {state.error && (
+              <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-2 rounded">
+                {state.error}
+              </div>
+            )}
           </div>
           <div
             style={{
