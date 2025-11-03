@@ -1,16 +1,24 @@
-import React, { useRef, useState, type Ref, type RefObject } from "react";
+import React, { createElement, useRef, useState, type Ref, type RefObject } from "react";
 import "./App.css";
 import AutomataGraph from "./AutomataGraph";
 import {
   Automaton,
   AutomatonType,
   EPSILON,
+  makeAut,
   RegexError,
   regexToAut,
   type AutomatonOpts,
+  type Transition,
 } from "./Automatons";
 import type { Network } from "vis";
 import AlgorithmDescription from "./DescriptionArea";
+import { BuilderTabs } from "./Tabs";
+
+export enum AutomatonBuilderState {
+  MANUAL,
+  REGEX,
+}
 
 export interface AppState {
   regex: string;
@@ -18,6 +26,7 @@ export interface AppState {
   disableDebugNames: boolean;
   acceptStatus: boolean | null;
   error: string | null;
+  automatonBuilderState: AutomatonBuilderState;
 }
 
 let currentWord = "";
@@ -35,6 +44,7 @@ export default function App() {
     disableDebugNames: true,
     acceptStatus: null,
     error: null,
+    automatonBuilderState: AutomatonBuilderState.REGEX,
   });
 
   function regexToAutE(regex: string | undefined) {
@@ -206,64 +216,32 @@ export default function App() {
             </div>
           )}
           </div>
+          
+          <BuilderTabs
+            active={state.automatonBuilderState}
+            onChange={(newState) =>
+              setState({ ...state, automatonBuilderState: newState })
+            }
+          />
 
-          {/* Regex Input */}
-          <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-            <label style={{ fontWeight: 600 }}>Regex:</label>
-            <div style={{ display: "flex", gap: "10px" }}>
-              <input
-                ref={regexRef}
-                placeholder="Enter regex..."
-                style={{ flex: 1, padding: "6px 10px", borderRadius: "6px", border: "1px solid #ccc" }}
+          <div style={{ width: "600px", margin: "0 auto" }}>
+            <div
+              className={`builder-panel ${state.automatonBuilderState === AutomatonBuilderState.REGEX ? "" : "hidden"}`}
+            >
+              <RegexInput
+                error={state.error}
+                onClick={() => regexToAutE(regexRef.current?.value)}
+                regexRef={regexRef}
               />
-              <button
-                onClick={() => regexToAutE(regexRef.current?.value) }
-                style={{ padding: "6px 12px", borderRadius: "6px", background: "#ff9800", color: "white", border: "none" }}
-              >
-                Create ε-NFA
-              </button>
             </div>
-            {state.error && (
-              <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-2 rounded">
-                {state.error}
-              </div>
-            )}
-          </div>
-          <div
-            style={{
-              display: "flex",
-              flexDirection: "column",
-              gap: "10px",
-              marginTop: "20px",
-              padding: "10px",
-              background: "#f0f0f0",
-              borderRadius: "8px",
-            }}
-          >
-            <label style={{ fontWeight: 600 }}>Regex Explanation:</label>
-            <ul style={{ paddingLeft: "20px", margin: 0, lineHeight: "1.5em" }}>
-              <li>
-                <b>Letters and other symbols</b>: a-z, A-Z, 0-9, or any symbols not used as regex syntax
-              </li>
-              <li>
-                <b>?</b>: zero or one occurrence of the preceding element
-              </li>
-              <li>
-                <b>*</b>: zero or more occurrences of the preceding element
-              </li>
-              <li>
-                <b>+</b>: one or more occurrences of the preceding element
-              </li>
-              <li>
-                <b>|</b>: alternative of two expressions (e.g., <code>a|b</code> means "a" or "b")
-              </li>
-              <li>
-                <b>()</b>: grouping of expressions (e.g., <code>(ab)*</code> means "ab" zero or more times)
-              </li>
-            </ul>
+
+            <div
+              className={`builder-panel ${state.automatonBuilderState === AutomatonBuilderState.MANUAL ? "" : "hidden"}`}
+            >
+              <ManualInput setState={setState} state={state} />
+            </div>
           </div>
 
-          {/* Automaton Conversion */}
           <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
             <button
               onClick={() => convertAut(AutomatonType.NFA)}
@@ -300,4 +278,276 @@ export default function App() {
       </div>
     </div>
   );
+}
+
+interface ManalInputState {
+  type: AutomatonType,
+  alphabet: string,
+  stateNames: Array<string>,
+  transitions: Transition[],
+  initialStates: number[],
+  finalStates: number[]
+}
+
+function ManualInput(props: { setState: (arg0: AppState) => void, state: AppState }) {
+  const [state, setState] = useState<ManalInputState>({
+    type: AutomatonType.DFA,
+    alphabet: "",
+    stateNames: [],
+    transitions: [],
+    initialStates: [],
+    finalStates: []
+  });
+
+  const typeSelectRef = useRef<HTMLSelectElement | null>(null);
+  const stateNameRef = useRef<HTMLInputElement | null>(null);
+  const alphabetRef = useRef<HTMLInputElement | null>(null);
+  const toRef = useRef<HTMLSelectElement | null>(null);
+  const fromRef = useRef<HTMLSelectElement | null>(null);
+  const charRef = useRef<HTMLSelectElement | null>(null);
+
+  const handleChangeType = () => {
+    let type: AutomatonType = parseInt(typeSelectRef.current!.value);
+    setState({ ...state, type });
+  };
+
+  const handleAddState = () => {
+    const name = stateNameRef.current?.value.trim();
+    if (name && !state.stateNames.includes(name)) {
+      setState({ ...state, stateNames: [...state.stateNames, name] });
+      stateNameRef.current!.value = "";
+    }
+  };
+
+  const handleSetAlphabet = () => {
+    const alpha = alphabetRef.current?.value.trim() || "";
+    setState({ ...state, alphabet: alpha });
+  };
+
+  const handleAddTransition = () => {
+    const to = parseInt(toRef.current!.value);
+    const from = parseInt(fromRef.current!.value);
+    const character = charRef.current!.value;
+
+    if (!isNaN(to) && !isNaN(from) && character) {
+      const transition: Transition = { to, from, character };
+      setState({ ...state, transitions: [...state.transitions, transition] });
+    }
+  };
+
+  const handleSetInitFinState = (i: number) => {
+    if (!state.initialStates.includes(i) && !state.finalStates.includes(i)) {
+      setState({ ...state, initialStates: state.initialStates.concat(i) });
+    } else if (state.initialStates.includes(i) && !state.finalStates.includes(i)) {
+      let initialStates = state.initialStates;
+      initialStates.splice(initialStates.indexOf(i), 1);
+      setState({ ...state, finalStates: state.finalStates.concat(i), initialStates });
+    } else {
+      let finalStates = state.finalStates;
+      finalStates.splice(finalStates.indexOf(i), 1);
+      setState({ ...state, finalStates });
+    }
+  }
+
+  const getColor = (i: number) => {
+    if (state.initialStates.includes(i)) {
+      return "white";
+    } else if (state.finalStates.includes(i)) {
+      return "black";
+    } else {
+      return "black";
+    }
+  };
+
+  const getBackColor = (i: number) => {
+    if (state.initialStates.includes(i)) {
+      return "black";
+    } else if (state.finalStates.includes(i)) {
+      return "green";
+    } else {
+      return "red";
+    }
+  };
+
+  const handleCreateAutomaton = () => {
+    let opts: AutomatonOpts = {
+      stateCount: state.stateNames.length,
+      stateNames: state.stateNames,
+      alphabet: state.alphabet,
+      finalStates: state.finalStates,
+      initialStates: state.initialStates,
+      transitions: state.transitions,
+    };
+    // FIXME: handle exceptions
+    let aut = makeAut(state.type, opts);
+    props.setState({ ...props.state, aut });
+  };
+
+  return (
+    <div className="manual-input">
+      <h3 className="manual-input__title">Manual Automaton Builder</h3>
+
+      <div className="manual-input__field">
+        <label className="manual-input__label">Automaton Type</label>
+        <select ref={typeSelectRef} onChange={handleChangeType} className="manual-input__select" defaultValue="DFA">
+          <option value={AutomatonType.DFA}>DFA</option>
+          <option value={AutomatonType.NFA}>NFA</option>
+          <option value={AutomatonType.ENFA}>ε-NFA</option>
+        </select>
+      </div>
+
+      <div className="manual-input__field">
+        <label className="manual-input__label">Alphabet</label>
+        <div className="manual-input__input-group">
+          <input
+            ref={alphabetRef}
+            type="text"
+            placeholder="e.g., abc"
+            className="manual-input__input"
+          />
+          <button onClick={handleSetAlphabet} className="manual-input__btn manual-input__btn--small">
+            Set
+          </button>
+        </div>
+        
+        {state.alphabet && (
+          <p className="manual-input__info">Σ = { state.alphabet.split('').join(', ') }</p>
+        )}
+      </div>
+
+      <div className="manual-input__field">
+        <label className="manual-input__label">States</label>
+        <div className="manual-input__input-group">
+          <input
+            ref={stateNameRef}
+            type="text"
+            placeholder="e.g., q0"
+            className="manual-input__input"
+          />
+          <button onClick={handleAddState} className="manual-input__btn manual-input__btn--small">
+            Add
+          </button>
+        </div>
+        <div className="manual-input__tags">
+          {state.stateNames.map((name, i) => (
+            <span onClick={() => handleSetInitFinState(i)} key={i} style={{ "color": getColor(i), "backgroundColor": getBackColor(i), "cursor": "pointer" }} className="manual-input__tag">
+              {name}
+            </span>
+          ))}
+          <div style={{ color: "grey", "fontSize": 10 }}>Hint: Click on states to change to initial or final state. (<strong>Black</strong> = Initial, <strong>Green</strong> = Final)</div>
+        </div>
+      </div>
+
+      <div className="manual-input__field">
+        <label className="manual-input__label">Transitions</label>
+        <div className="manual-input__transition-builder">
+          <select ref={fromRef} className="manual-input__select">
+            <option value="">From</option>
+            {state.stateNames.map((name, i) => (
+              <option key={i} value={i}>{name}</option>
+            ))}
+          </select>
+
+          <span className="manual-input__arrow">→</span>
+
+          <select ref={charRef} className="manual-input__select">
+            <option value="">Symbol</option>
+            {state.alphabet.split('').map((c, i) => (
+              <option key={i} value={c}>{c}</option>
+            ))}
+            {state.type == AutomatonType.ENFA 
+              && <option key={-1} value={EPSILON}>{EPSILON}</option>}
+          </select>
+
+          <span className="manual-input__arrow">→</span>
+
+          <select ref={toRef} className="manual-input__select">
+            <option value="">To</option>
+            {state.stateNames.map((name, i) => (
+              <option key={i} value={i}>{name}</option>
+            ))}
+          </select>
+
+          <button onClick={handleAddTransition} className="manual-input__btn manual-input__btn--icon">
+            +
+          </button>
+        </div>
+
+        <div className="manual-input__transitions-list">
+          {state.transitions.length === 0 ? (
+            <p className="manual-input__placeholder">No transitions added yet.</p>
+          ) : (
+            state.transitions.map((t, i) => (
+              <div key={i} className="manual-input__transition">
+                <strong>{state.stateNames[t.from] || `q${t.from}`}</strong>
+                <span className="manual-input__transition-char"> —{t.character}→ </span>
+                <strong>{state.stateNames[t.to] || `q${t.to}`}</strong>
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+
+      <button onClick={handleCreateAutomaton} className="manual-input__create-btn">
+        Create Automaton
+      </button>
+    </div>
+  );
+}
+
+function RegexInput(props: {error: string | null, onClick: () => void, regexRef: Ref<HTMLInputElement>}) {
+  return (<><div style={{ display: "flex", flexDirection: "column", gap: "10px", width: "100%" }}>
+    <label style={{ fontWeight: 600 }}>Regex:</label>
+    <div style={{ display: "flex", gap: "10px", width: "100%" }}>
+      <input
+        ref={props.regexRef}
+        placeholder="Enter regex..."
+        style={{ flex: 1, padding: "6px 10px", borderRadius: "6px", border: "1px solid #ccc" }}
+      />
+      <button
+        onClick={props.onClick}
+        style={{ padding: "6px 12px", borderRadius: "6px", background: "#ff9800", color: "white", border: "none" }}
+      >
+        Create ε-NFA
+      </button>
+    </div>
+    {props.error && (
+      <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-2 rounded">
+        {props.error}
+      </div>
+    )}
+  </div>
+  <div
+    style={{
+      display: "flex",
+      flexDirection: "column",
+      gap: "10px",
+      marginTop: "20px",
+      padding: "10px",
+      background: "#f0f0f0",
+      borderRadius: "8px",
+    }}
+  >
+    <label style={{ fontWeight: 600 }}>Regex Explanation:</label>
+    <ul style={{ paddingLeft: "20px", margin: 0, lineHeight: "1.5em" }}>
+      <li>
+        <b>Letters and other symbols</b>: a-z, A-Z, 0-9, or any symbols not used as regex syntax
+      </li>
+      <li>
+        <b>?</b>: zero or one occurrence of the preceding element
+      </li>
+      <li>
+        <b>*</b>: zero or more occurrences of the preceding element
+      </li>
+      <li>
+        <b>+</b>: one or more occurrences of the preceding element
+      </li>
+      <li>
+        <b>|</b>: alternative of two expressions (e.g., <code>a|b</code> means "a" or "b")
+      </li>
+      <li>
+        <b>()</b>: grouping of expressions (e.g., <code>(ab)*</code> means "ab" zero or more times)
+      </li>
+    </ul>
+  </div></>);
 }
