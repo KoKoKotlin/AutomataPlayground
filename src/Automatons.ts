@@ -68,7 +68,7 @@ export abstract class Automaton {
     this.highlightedEdges = [];
   }
 
-  abstract checkCorrect(): boolean;
+  abstract checkCorrect(): AutResult;
 
   getAllTransitions(c: string, from: number): Array<Transition> {
     return this.transitions.filter(t => t.character === c && t.from === from);
@@ -139,31 +139,50 @@ export abstract class Automaton {
   } 
 }
 
+interface AutResult {
+  desc: string,
+  ok: boolean,
+}
+
+function ok(): AutResult { return { desc: "", ok: true }; }
+function err(desc: string): AutResult { return { desc, ok: true }; }
+
 class DFA extends Automaton {
 
   constructor(opts: AutomatonOpts) {
     super(opts);
     
-    if (!this.checkCorrect()) throw new Error("Definition of DFA is not correct.");
+    let res = this.checkCorrect();
+    if (!res.ok) {
+      console.log(this);
+      throw new Error(`Definition of DFA is not correct: ${res.desc}`);
+    }
   }
 
-  checkCorrect(): boolean {
+  checkCorrect(): AutResult {
     // no epsilon transitions
     // only valid transitions
-    for (const t of this.transitions) {
-      if (t.character === EPSILON) return false;
-      if (t.from >= this.stateCount || t.from < 0) return false;
+    for (let i = 0; i < this.transitions.length; i++) {
+      const t = this.transitions[i];
+      if (t.character === EPSILON) return err(`Epsilon transition at index ${i}!`);
+      if (t.from >= this.stateCount || t.from < 0) return err(`From index out of range at index ${i}!`);
+      if (t.to >= this.stateCount || t.to < 0) return err(`To index out of range at index ${i}!`);
     }
 
     // check that for each state and character combination there exists a transition
     for (let i = 0; i < this.stateCount; ++i) {
       for (const c of this.alphabet) {
-        if (this.transitions.filter(t => t.character == c && t.from == i).length !== 1) return false;
+        let ts = this.transitions.filter(t => t.character == c && t.from == i);
+        if (ts.length === 0) return err(`No transition from ${i} with character ${c}!`);
+        if (ts.length > 1) return err(`Multiple transitions from ${i} with character ${c}!`);
       }
     }
 
     // only one initial state
-    return this.initialStates.length === 1;
+    if (this.initialStates.length === 0) return err(`No initial state!`);
+    if (this.initialStates.length > 1) return err(`Multiple initial states!`);
+
+    return ok();
   }
 
   toNFA(): Automaton {
@@ -179,20 +198,28 @@ class NFA extends Automaton {
   constructor(opts: AutomatonOpts) {
     super(opts);
     
-    if (!this.checkCorrect()) throw new Error("Definition of NFA is not correct.");
+    let res = this.checkCorrect();
+    if (!res.ok) {
+      console.log(this);
+      throw new Error(`Definition of NFA is not correct: ${res.desc}`);
+    }
   }
 
 
-  checkCorrect(): boolean {
+  checkCorrect(): AutResult {
     // no epsilon transitions
     // only valid transitions
-    for (const t of this.transitions) {
-      if (t.character === EPSILON) return false;
-      if (t.from >= this.stateCount || t.from < 0) return false;
+    for (let i = 0; i < this.transitions.length; i++) {
+      const t = this.transitions[i];
+      if (t.character === EPSILON) return err(`Epsilon transition at index ${i}!`);
+      if (t.from >= this.stateCount || t.from < 0) return err(`From index out of range at index ${i}!`);
+      if (t.to >= this.stateCount || t.to < 0) return err(`To index out of range at index ${i}!`);
     }
 
     // at least one initial state
-    return this.initialStates.length > 0;
+    if (this.initialStates.length === 0) return err(`No initial state!`);
+
+    return ok();
   }
   
   toNFA(): Automaton {
@@ -250,17 +277,25 @@ class ENFA extends Automaton {
   constructor(opts: AutomatonOpts) {
     super(opts);
     
-    if (!this.checkCorrect()) throw new Error("Definition of ENFA is not correct.");
+    let res = this.checkCorrect();
+    if (!res.ok) {
+      console.log(this);
+      throw new Error(`Definition of DFA is not correct: ${res.desc}`);
+    }
   }
 
-  checkCorrect(): boolean {
+  checkCorrect(): AutResult {
     // only valid transitions
-    for (const t of this.transitions) {
-      if (t.from >= this.stateCount || t.from < 0) return false;
+    for (let i = 0; i < this.transitions.length; i++) {
+      const t = this.transitions[i];
+      if (t.from >= this.stateCount || t.from < 0) return err(`From index out of range at index ${i}!`);
+      if (t.to >= this.stateCount || t.to < 0) return err(`To index out of range at index ${i}!`);
     }
 
     // at least one initial state
-    return this.initialStates.length > 0;
+    if (this.initialStates.length === 0) return err(`No initial state!`);
+
+    return ok();
   }
 
   toDFA(): Automaton {
