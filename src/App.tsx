@@ -115,6 +115,10 @@ export default function App() {
     }
   }
 
+  function minimizeAut() {
+    setState({ ...state, aut: aut.minimize() });
+  }
+
   return (
     <div
       style={{
@@ -272,6 +276,12 @@ export default function App() {
               style={{ padding: "6px 12px", borderRadius: "6px", background: "#9c27b0", color: "white", border: "none" }}
             >
               Convert to DFA
+            </button>
+                        <button
+              onClick={() => minimizeAut()}
+              style={{ padding: "6px 12px", borderRadius: "6px", background: "#2084afff", color: "white", border: "none" }}
+            >
+              Minimize DFA (Hopfcroft)
             </button>
           </div>
 

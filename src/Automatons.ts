@@ -8,6 +8,23 @@ function stoa(s: string): Array<number> {
   return s.split(",").map(d => parseInt(d));
 }
 
+function includesArray<T>(array: Array<Array<T>>, other: Array<T>): number {
+  for (const elem of array) {
+    if (elem.length !== other.length) continue;
+    let same = true;
+    for (let i = 0; i < elem.length; i++) {
+      if (elem[i] !== other[i]) {
+        same = false;
+        break;
+      }
+      
+      if (same) return i;
+    }
+  }
+
+  return -1;
+}
+
 
 export interface Transition {
   character: string;
@@ -136,7 +153,83 @@ export abstract class Automaton {
         }
       }
     }
-  } 
+  }
+
+  // Hopfcrofts algorithm
+  minimize(): Automaton {
+    if (this instanceof NFA || this instanceof ENFA) return this;
+
+    let mergedStates = [
+      this.finalStates.sort(), 
+      Array.from(Array(this.stateCount).keys()).filter(idx => !this.finalStates.includes(idx)).sort()
+    ];
+    let splitters = [
+      this.finalStates.sort(), 
+      Array.from(Array(this.stateCount).keys()).filter(idx => !this.finalStates.includes(idx)).sort()
+    ]
+    
+    if (mergedStates.length == this.stateCount) return this;
+
+    while (splitters.length > 0) {
+      const A = splitters.pop(); 
+      let X = []; // X = c^-1 * A
+      for (let c of this.alphabet) {
+        for (let from = 0; from < this.stateCount; from++) {
+          let to = this.getAllTransitions(c, from)[0].to;
+          if (A!.includes(to)) X.push(to);
+        }
+        X.sort();
+
+        for (let i = mergedStates.length - 1; i >= 0; i--) {
+          const Y = mergedStates[i];
+          const intersection = X.filter(idx => Y.includes(idx)).sort(); // X intersect Y
+          const difference = Y.filter(idx => !X.includes(idx)).sort(); // Y \ X
+          if (intersection.length === 0 || difference.length === 0) continue;
+
+          mergedStates.splice(i, 1, intersection, difference); // replace Y with new states
+
+          let j = includesArray(splitters, Y);
+          if (j !== -1) {
+            splitters.splice(j, 1, intersection, difference);
+          } else {
+            if (intersection.length <= difference.length) {
+              splitters.push(intersection);
+            } else {
+              splitters.push(difference);
+            }
+          }
+        }
+      }
+    }
+
+    if (mergedStates.length == this.stateCount) return this;
+
+    let transitions: Array<Transition> = [];
+    for (let from = 0; from < mergedStates.length; from++) {
+      for (const c of this.alphabet) {
+        let to = this.getAllTransitions(c, mergedStates[from][0])[0].to;
+        let toIdx = mergedStates.findIndex(state => state.includes(to));
+        transitions.push({ from, to: toIdx, character: c });
+      }
+    }
+    let finalStates = []; 
+    for (let i = 0; i < mergedStates.length; i++) {
+      const state = mergedStates[i];
+      if (!this.finalStates.some(idx => state.includes(idx))) continue;
+      finalStates.push(i);
+    }
+
+    let opts: AutomatonOpts = {
+      stateCount: mergedStates.length,
+      stateNames: mergedStates.map(state => atos(...state)),
+      alphabet: this.alphabet,
+      transitions,
+      initialStates: [mergedStates.findIndex(state => state.includes(this.initialStates[0]))],
+      finalStates
+    };
+
+    return makeAut(AutomatonType.DFA, opts);
+  }
 }
 
 interface AutResult {
