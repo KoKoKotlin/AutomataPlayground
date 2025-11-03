@@ -120,6 +120,23 @@ export abstract class Automaton {
 
   abstract toNFA(): Automaton;
   abstract toDFA(): Automaton;
+
+  pruneRedundantEdges() {
+    for (let to = 0; to < this.stateCount; to++) {
+      for (let from = 0; from < this.stateCount; from++) {
+        for (let c of this.alphabet) {
+          let seen = false;
+          for (let k = this.transitions.length - 1; k >= 0; k--) {
+            let t = this.transitions[k];
+            if (t.to !== to || t.from !== from || t.character !== c) continue;
+
+            if (!seen) seen = true;
+            else this.transitions.splice(k, 1);
+          }
+        }
+      }
+    }
+  } 
 }
 
 class DFA extends Automaton {
@@ -223,7 +240,9 @@ class NFA extends Automaton {
       finalStates: finalStates,
     };
 
-    return makeAut(AutomatonType.DFA, opts);
+    let aut = makeAut(AutomatonType.DFA, opts);
+    aut.pruneRedundantEdges();
+    return aut;
   }
 }
 
@@ -269,7 +288,10 @@ class ENFA extends Automaton {
       initialStates: Array.from(this.getEpsClojure(new Set(this.initialStates))),
       finalStates: nfaFinalstates
     };
-    return makeAut(AutomatonType.NFA, opts);
+    
+    let aut = makeAut(AutomatonType.NFA, opts);
+    aut.pruneRedundantEdges();
+    return aut;
   }
 }
 
